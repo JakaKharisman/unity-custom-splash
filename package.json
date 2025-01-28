@@ -1,0 +1,12 @@
+{
+    "name": "com.jakakharisman.unitysplashextended",
+    "version": "0.0.1",
+    "displayName": "Unity Custom Splash",
+    "description": "Implementation of Custom Splash in a Scene on Unity3D",
+    "unity": "6000.0",
+    "author": {
+        "name": "Jaka Kharisman",
+        "email": "78017187+JakaKharisman@users.noreply.github.com",
+        "url": "https://jakakharisman.github.io/"
+    }
+}
