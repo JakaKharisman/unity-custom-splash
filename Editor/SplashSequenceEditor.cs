@@ -133,7 +133,7 @@ namespace JK.UnitySplashExtendedEditor {
 				EditorGUI.indentLevel = previousIndentLevel;
 
 				bool Foldout(string name, bool value, SerializedProperty curve, SerializedProperty multiplier) {
-					bool newValue = EditorGUILayout.Foldout(value, new GUIContent(name));
+					bool newValue = EditorGUILayout.Foldout(value, new GUIContent(name), true);
 					if (newValue) {
 						EditorGUI.indentLevel++;
 						EditorGUILayout.PropertyField(curve, new GUIContent("Curve"));
@@ -153,7 +153,7 @@ namespace JK.UnitySplashExtendedEditor {
 				EditorGUI.indentLevel = previousIndentLevel;
 
 				bool Foldout(string name, bool value, SerializedProperty property) {
-					bool newValue = EditorGUILayout.Foldout(value, new GUIContent(name));
+					bool newValue = EditorGUILayout.Foldout(value, new GUIContent(name), true);
 					if (newValue) {
 						EditorGUI.indentLevel++;
 						DrawAnimatorInfoProperty(property);
