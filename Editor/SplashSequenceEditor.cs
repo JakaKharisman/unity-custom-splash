@@ -21,13 +21,15 @@ namespace JK.UnitySplashExtendedEditor {
 		private SerializedProperty modifyCanvasGroupInteractableOnTransitionProperty;
 		private SerializedProperty modifyCanvasGroupBlockRaycastOnTransitionProperty;
 
-		private SerializedProperty animatorTransitionInInfoProperty;
-		private SerializedProperty animatorTransitionOutInfoProperty;
+		private SerializedProperty transitionInAnimatorInfoProperty;
+		private SerializedProperty transitionOutAnimatorInfoProperty;
+
+		private SerializedProperty transitionInAnimationInfoProperty;
 
 		private SerializedProperty customTransitionTargetProperty;
 
 		private SerializedProperty canvasGroupSequenceTypeProperty;
-		private SerializedProperty animationSequenceTypeProperty;
+		private SerializedProperty animatorSequenceTypeProperty;
 		private SerializedProperty genericSequenceTypeProperty;
 
 		private SerializedProperty waitSequenceDurationProperty;
@@ -56,13 +58,13 @@ namespace JK.UnitySplashExtendedEditor {
 			modifyCanvasGroupInteractableOnTransitionProperty = serializedObject.FindProperty(nameof(SplashSequence.modifyCanvasGroupInteractableOnTransition));
 			modifyCanvasGroupBlockRaycastOnTransitionProperty = serializedObject.FindProperty(nameof(SplashSequence.modifyCanvasGroupBlockRaycastOnTransition));
 
-			animatorTransitionInInfoProperty = serializedObject.FindProperty(nameof(SplashSequence.animatorTransitionInInfo));
-			animatorTransitionOutInfoProperty = serializedObject.FindProperty(nameof(SplashSequence.animatorTransitionOutInfo));
+			transitionInAnimatorInfoProperty = serializedObject.FindProperty(nameof(SplashSequence.transitionInAnimatorInfo));
+			transitionOutAnimatorInfoProperty = serializedObject.FindProperty(nameof(SplashSequence.transitionOutAnimatorInfo));
 
 			customTransitionTargetProperty = serializedObject.FindProperty(nameof(SplashSequence.customTransitionTarget));
 
 			canvasGroupSequenceTypeProperty = serializedObject.FindProperty(nameof(SplashSequence.canvasGroupSequenceType));
-			animationSequenceTypeProperty = serializedObject.FindProperty(nameof(SplashSequence.animationSequenceType));
+			animatorSequenceTypeProperty = serializedObject.FindProperty(nameof(SplashSequence.animatorSequenceType));
 			genericSequenceTypeProperty = serializedObject.FindProperty(nameof(SplashSequence.genericSequenceType));
 
 			waitSequenceDurationProperty = serializedObject.FindProperty(nameof(SplashSequence.waitSequenceDuration));
@@ -145,8 +147,8 @@ namespace JK.UnitySplashExtendedEditor {
 			void DrawAnimator() {
 				int previousIndentLevel = EditorGUI.indentLevel;
 
-				inFoldout = Foldout("In", inFoldout, animatorTransitionInInfoProperty);
-				outFoldout = Foldout("Out", outFoldout, animatorTransitionOutInfoProperty);
+				inFoldout = Foldout("In", inFoldout, transitionInAnimatorInfoProperty);
+				outFoldout = Foldout("Out", outFoldout, transitionOutAnimatorInfoProperty);
 
 				EditorGUI.indentLevel = previousIndentLevel;
 
@@ -171,7 +173,7 @@ namespace JK.UnitySplashExtendedEditor {
 					DrawCanvasGroup();
 					break;
 				case SplashSequence.TransitionType.Animator:
-					DrawAnimation();
+					DrawAnimator();
 					break;
 				default:
 					DrawGeneric();
@@ -197,19 +199,19 @@ namespace JK.UnitySplashExtendedEditor {
 				EditorGUI.indentLevel = previousIndentLevel;
 			}
 
-			void DrawAnimation() {
-				EditorGUILayout.PropertyField(animationSequenceTypeProperty, sequenceLabel);
+			void DrawAnimator() {
+				EditorGUILayout.PropertyField(animatorSequenceTypeProperty, sequenceLabel);
 
 				int previousIndentLevel = EditorGUI.indentLevel;
 				EditorGUI.indentLevel++;
 
-				var sequenceType = (SplashSequence.AnimatorSequenceType)(animationSequenceTypeProperty.enumValueIndex);
+				var sequenceType = (SplashSequence.AnimatorSequenceType)(animatorSequenceTypeProperty.enumValueIndex);
 				switch (sequenceType) {
 					case SplashSequence.AnimatorSequenceType.Wait:
 						DrawWaitProperties();
 						break;
 					case SplashSequence.AnimatorSequenceType.Animator:
-						DrawAnimationProperties();
+						DrawAnimatorProperties();
 						break;
 					default:
 						break;
@@ -231,7 +233,7 @@ namespace JK.UnitySplashExtendedEditor {
 						DrawWaitProperties();
 						break;
 					case SplashSequence.GenericSequenceType.Animator:
-						DrawAnimationProperties();
+						DrawAnimatorProperties();
 						break;
 					default:
 						break;
@@ -245,7 +247,7 @@ namespace JK.UnitySplashExtendedEditor {
 				EditorGUILayout.PropertyField(waitSequenceDurationProperty, new GUIContent("Duration"));
 			}
 
-			void DrawAnimationProperties() {
+			void DrawAnimatorProperties() {
 				DrawAnimatorInfoProperty(sequenceAnimatorInfo);
 			}
 		}

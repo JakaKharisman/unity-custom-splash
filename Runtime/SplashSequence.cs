@@ -58,8 +58,8 @@ namespace JK.UnityCustomSplash {
 
 		// Transition - Animator
 
-		[SerializeField] internal AnimatorInfo animatorTransitionInInfo;
-		[SerializeField] internal AnimatorInfo animatorTransitionOutInfo;
+		[SerializeField] internal AnimatorInfo transitionInAnimatorInfo;
+		[SerializeField] internal AnimatorInfo transitionOutAnimatorInfo;
 
 		// Transition - Custom
 
@@ -70,7 +70,7 @@ namespace JK.UnityCustomSplash {
 		// Shown only on specific requirement
 
 		[SerializeField] internal CanvasGroupSequenceType canvasGroupSequenceType;
-		[SerializeField] internal AnimatorSequenceType animationSequenceType;
+		[SerializeField] internal AnimatorSequenceType animatorSequenceType;
 		[SerializeField] internal GenericSequenceType genericSequenceType;
 
 		[SerializeField, Min(0)] internal float waitSequenceDuration = 1;
@@ -88,14 +88,14 @@ namespace JK.UnityCustomSplash {
 			if (!editorInspectorInit) {
 				if (TryGetComponent(out canvasGroupTransitionTarget)) SetTransitionTargetType(TransitionType.CanvasGroup);
 				if (TryGetComponent<Animator>(out var animator)) {
-					animatorTransitionInInfo ??= new AnimatorInfo();
-					animatorTransitionOutInfo ??= new AnimatorInfo();
+					transitionInAnimatorInfo ??= new AnimatorInfo();
+					transitionOutAnimatorInfo ??= new AnimatorInfo();
 
-					animatorTransitionInInfo.Animator = animator;
-					animatorTransitionOutInfo.Animator = animator;
+					transitionInAnimatorInfo.Animator = animator;
+					transitionOutAnimatorInfo.Animator = animator;
 
-					CheckState(animatorTransitionInInfo, "Transition In");
-					CheckState(animatorTransitionOutInfo, "Transition Out");
+					CheckState(transitionInAnimatorInfo, "Transition In");
+					CheckState(transitionOutAnimatorInfo, "Transition Out");
 					SetTransitionTargetType(TransitionType.Animator);
 
 					void CheckState(AnimatorInfo info, string name) {
@@ -175,7 +175,7 @@ namespace JK.UnityCustomSplash {
 					}
 					break;
 				case TransitionType.Animator:
-					yield return PlayAnimatorInfo(animatorTransitionInInfo);
+					yield return PlayAnimatorInfo(transitionInAnimatorInfo);
 					break;
 				case TransitionType.Custom:
 					if (customTransitionTarget) {
@@ -203,7 +203,7 @@ namespace JK.UnityCustomSplash {
 					}
 					break;
 				case TransitionType.Animator:
-					yield return PlayAnimatorInfo(animatorTransitionOutInfo);
+					yield return PlayAnimatorInfo(transitionOutAnimatorInfo);
 					break;
 				case TransitionType.Custom:
 					if (customTransitionTarget) {
@@ -264,7 +264,7 @@ namespace JK.UnityCustomSplash {
 					}
 					break;
 				case TransitionType.Animator:
-					switch (animationSequenceType) {
+					switch (animatorSequenceType) {
 						case AnimatorSequenceType.Wait:
 							type = SEQUENCE_WAIT;
 							break;

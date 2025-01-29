@@ -8,19 +8,18 @@ using UnityEngine.Events;
 namespace JK.UnityCustomSplash {
 	public class Splash : MonoBehaviour {
 		[Serializable]
-		internal class SplashReference {
-			public int Priority;
+		internal class SequenceInfo {
 			public bool WaitUntilFinished = true;
 			public SplashSequence Sequence;
 		}
 
-		[SerializeField] internal SplashReference[] _sequenceReferences;
+		[SerializeField] internal SequenceInfo[] _sequenceReferences;
 		[SerializeField] internal bool playOnStart;
 
-		private readonly List<SplashReference> references = new List<SplashReference>();
+		private readonly List<SequenceInfo> references = new List<SequenceInfo>();
 
 		private int currentIndex;
-		private List<SplashReference> groupReferences = new List<SplashReference>();
+		private List<SequenceInfo> groupReferences = new List<SequenceInfo>();
 		private readonly List<Coroutine> coroutines = new List<Coroutine>();
 
 		private Coroutine sequenceRoutine;
@@ -42,7 +41,6 @@ namespace JK.UnityCustomSplash {
 			references.Clear();
 			if (_sequenceReferences != null && _sequenceReferences.Length > 0) {
 				references.AddRange(_sequenceReferences.Where(reference => reference.Sequence != null));
-				references.Sort((l, r) => (l.Priority < r.Priority) ? -1 : (l.Priority > r.Priority ? 1 : 0));
 				foreach (var reference in references) {
 					reference.Sequence.Setup();
 				}
@@ -55,7 +53,8 @@ namespace JK.UnityCustomSplash {
 		}
 
 		protected virtual void OnDestroy() {
-
+			onPlayed?.RemoveAllListeners();
+			onFinished?.RemoveAllListeners();
 		}
 
 		private void End() {
