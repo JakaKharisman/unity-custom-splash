@@ -31,8 +31,8 @@ namespace JK.UnityCustomSplash {
 		[SerializeField] internal UnityEvent onPlayed;
 		[SerializeField] internal UnityEvent onFinished;
 
-		public UnityEvent OnPlayed => onPlayed;
-		public UnityEvent OnFinished => onFinished;
+		public UnityEvent OnPlayed => onPlayed ??= new UnityEvent();
+		public UnityEvent OnFinished => onFinished ??= new UnityEvent();
 
 		protected virtual void Awake() {
 			currentIndex = 0;
@@ -58,10 +58,11 @@ namespace JK.UnityCustomSplash {
 		}
 
 		private void End() {
-			if (!isFinished) return;
+			if (!isPlaying || isFinished) return;
 
 			isPlaying = false;
 			isFinished = true;
+			OnFinished?.Invoke();
 		}
 
 		private void SkipCurrent() {
@@ -132,7 +133,6 @@ namespace JK.UnityCustomSplash {
 			}
 
 			transitionRoutine = null;
-
 			if (!Continue()) End();
 		}
 
@@ -166,6 +166,7 @@ namespace JK.UnityCustomSplash {
 			isPlaying = true;
 			isFinished = false;
 			Continue();
+			OnPlayed?.Invoke();
 		}
 
 		public void Skip() {
