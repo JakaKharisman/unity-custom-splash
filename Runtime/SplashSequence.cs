@@ -1,27 +1,79 @@
 using System.Collections;
 using UnityEngine;
 
+#if ENABLE_VIDEO
+using UnityEngine.Video;
+#endif
+
 namespace JK.UnityCustomSplash {
 	public class SplashSequence : MonoBehaviour {
 		internal enum TransitionType {
-			None,
-			CanvasGroup,
-			Animator,
-			Custom,
+			None = 0,
+			CanvasGroup = 1,
+			Animator = 2,
+#if ENABLE_VIDEO
+			Video = 3,
+#endif
+			Custom = 999,
 		}
 
-		internal enum CanvasGroupSequenceType {
-			Wait,
+		internal enum SequenceType {
+			Stay = 0,
+			Animator = 1,
+#if ENABLE_VIDEO
+			Video = 2,
+#endif
 		}
 
-		internal enum AnimatorSequenceType {
-			Wait,
-			Animator,
-		}
+		[System.Serializable]
+		internal class CanvasGroupInfo {
+			public enum TrType {
+				SetAlpha,
+				Fade,
+			}
 
-		internal enum GenericSequenceType {
-			Wait,
-			Animator,
+			private float duration;
+
+			public TrType TransitionType;
+
+			[Range(0, 1)] public float TargetAlpha;
+
+			public AnimationCurve FadeCurve;
+			[Min(0.1f)] public float FadeDeltaMultiplier = 1f;
+
+			internal void Setup() {
+				duration = (FadeCurve.length > 0) ? FadeCurve[FadeCurve.length - 1].time : 0;
+			}
+
+			internal IEnumerator Do(CanvasGroup target) {
+				switch (TransitionType) {
+					case TrType.SetAlpha:
+						target.alpha = TargetAlpha;
+						break;
+					case TrType.Fade:
+						float elapsedTime = 0f;
+						while (elapsedTime < duration) {
+							elapsedTime += Time.deltaTime * FadeDeltaMultiplier;
+							target.alpha = FadeCurve.Evaluate(elapsedTime / duration);
+							yield return null;
+						}
+						break;
+				}
+			}
+
+			internal static CanvasGroupInfo In() {
+				return new CanvasGroupInfo() {
+					FadeCurve = AnimationCurve.EaseInOut(0, 0, 1, 1),
+					TargetAlpha = 1,
+				};
+			}
+
+			internal static CanvasGroupInfo Out() {
+				return new CanvasGroupInfo() {
+					FadeCurve = AnimationCurve.EaseInOut(0, 1, 1, 0),
+					TargetAlpha = 0,
+				};
+			}
 		}
 
 		[System.Serializable]
@@ -31,28 +83,60 @@ namespace JK.UnityCustomSplash {
 			[Min(0)] public int OverrideLayerIndexValue;
 
 			public int EntryStateHash;
-
+			
 			public int LayerIndex => OverrideLayerIndex ? 0 : OverrideLayerIndexValue;
+
+			internal IEnumerator Play() {
+				Animator.Play(EntryStateHash, LayerIndex);
+				while (true) {
+					yield return null;
+					var stateInfo = Animator.GetCurrentAnimatorStateInfo(LayerIndex);
+					bool inTransition = Animator.IsInTransition(LayerIndex);
+					if (!inTransition && stateInfo.normalizedTime >= 1f) break;
+				}
+			}
 		}
 
-		const int SEQUENCE_NONE = -1;
-		const int SEQUENCE_WAIT = 0;
-		const int SEQUENCE_ANIMATION = 1;
+#if ENABLE_VIDEO
+		[System.Serializable]
+		internal class VideoInfo {
+			public VideoPlayer VideoPlayer;
+			public bool PrepareOnSetup;
+
+			internal void Setup() {
+				if (VideoPlayer) {
+					VideoPlayer.playOnAwake = false;
+					VideoPlayer.isLooping = false;
+
+					if (PrepareOnSetup) {
+						VideoPlayer.Prepare();
+					}
+				}
+			}
+
+			internal IEnumerator Play() {
+				if (!VideoPlayer.isPrepared) VideoPlayer.Prepare();
+				yield return new WaitUntil(() => VideoPlayer.isPrepared);
+
+				VideoPlayer.Play();
+				yield return null;
+				while (VideoPlayer.frame == 0 || VideoPlayer.isPlaying) {
+					yield return null;
+				}
+			}
+		}
+#endif
 
 		[SerializeField] internal TransitionType transitionType;
 
 		// Transition - Canvas Group
 
 		[SerializeField] internal CanvasGroup canvasGroupTransitionTarget;
-		[SerializeField] internal AnimationCurve canvasGroupFadeInCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
-		[SerializeField, Min(0.1f)] internal float canvasGroupFadeInMultiplier = 1f;
-		[SerializeField] internal AnimationCurve canvasGroupFadeOutCurve = AnimationCurve.EaseInOut(0, 1, 1, 0);
-		[SerializeField, Min(0.1f)] internal float canvasGroupFadeOutMultiplier = 1f;
+		[SerializeField] internal CanvasGroupInfo transitionInCanvasGroupInfo = CanvasGroupInfo.In();
+		[SerializeField] internal CanvasGroupInfo transitionOutCanvasGroupInfo = CanvasGroupInfo.Out();
 		[SerializeField] internal bool modifyCanvasGroupInteractableOnTransition;
 		[SerializeField] internal bool modifyCanvasGroupBlockRaycastOnTransition;
 
-		private float canvasGroupFadeInDuration;
-		private float canvasGroupFadeOutDuration;
 		private bool previousCanvasGroupInteractable;
 		private bool previousCanvasGroupBlockRaycast;
 
@@ -61,24 +145,32 @@ namespace JK.UnityCustomSplash {
 		[SerializeField] internal AnimatorInfo transitionInAnimatorInfo;
 		[SerializeField] internal AnimatorInfo transitionOutAnimatorInfo;
 
+		// Transition - Video
+
+#if ENABLE_VIDEO
+		[SerializeField] internal VideoInfo transitionInVideoInfo;
+		[SerializeField] internal VideoInfo transitionOutVideoInfo;
+#endif
+
 		// Transition - Custom
 
 		[SerializeField] internal SplashSequenceTransition customTransitionTarget;
 
 		[SerializeField] internal bool modifyGameObjectOnTransition = false;
 
-		// Shown only on specific requirement
-
-		[SerializeField] internal CanvasGroupSequenceType canvasGroupSequenceType;
-		[SerializeField] internal AnimatorSequenceType animatorSequenceType;
-		[SerializeField] internal GenericSequenceType genericSequenceType;
-
-		[SerializeField, Min(0)] internal float waitSequenceDuration = 1;
+		// Sequence
+		[SerializeField] internal SequenceType sequenceType;
+		[SerializeField, Min(0)] internal float sequenceStayDuration = 1;
 		[SerializeField] internal AnimatorInfo sequenceAnimatorInfo;
+		
+#if ENABLE_VIDEO
+		[SerializeField] internal VideoInfo sequenceVideoInfo;
+#endif
 
 #if UNITY_EDITOR
 		[SerializeField, HideInInspector] private bool editorInspectorInit;
 #endif
+
 
 #if UNITY_EDITOR
 		/// <summary>
@@ -86,30 +178,27 @@ namespace JK.UnityCustomSplash {
 		/// </summary>
 		protected virtual void OnValidate() {
 			if (!editorInspectorInit) {
-				if (TryGetComponent(out canvasGroupTransitionTarget)) SetTransitionTargetType(TransitionType.CanvasGroup);
-				if (TryGetComponent<Animator>(out var animator)) {
+				Animator animator = null;
+				if (TryGetComponent(out canvasGroupTransitionTarget)) {
+					SetTransitionTargetType(TransitionType.CanvasGroup);
+				} else if (TryGetComponent<Animator>(out animator)) {
 					transitionInAnimatorInfo ??= new AnimatorInfo();
 					transitionOutAnimatorInfo ??= new AnimatorInfo();
 
 					transitionInAnimatorInfo.Animator = animator;
 					transitionOutAnimatorInfo.Animator = animator;
 
-					CheckState(transitionInAnimatorInfo, "Transition In");
-					CheckState(transitionOutAnimatorInfo, "Transition Out");
+					CheckAnimatorStates(animator, transitionInAnimatorInfo, "Transition In");
+					CheckAnimatorStates(animator, transitionOutAnimatorInfo, "Transition Out");
 					SetTransitionTargetType(TransitionType.Animator);
+				}
 
-					void CheckState(AnimatorInfo info, string name) {
-						int hash = Animator.StringToHash(name);
-						if (animator.HasState(0, hash)) {
-							info.EntryStateHash = hash;
-							return;
-						}
-						
-						int mergedHash = Animator.StringToHash(name.Replace(" ", string.Empty));
-						if (animator.HasState(0, mergedHash)) {
-							info.EntryStateHash = mergedHash;
-						}
-					}
+				if (animator) {
+					sequenceType = SequenceType.Animator;
+					sequenceAnimatorInfo ??= new AnimatorInfo();
+					sequenceAnimatorInfo.Animator = animator;
+
+					CheckAnimatorStates(animator, sequenceAnimatorInfo, "Sequence", "Sequence Entry", "Sequence Start");
 				}
 
 				void SetTransitionTargetType(TransitionType type) {
@@ -118,10 +207,34 @@ namespace JK.UnityCustomSplash {
 					transitionType = type;
 				}
 
+				bool CheckAnimatorStates(Animator animator, AnimatorInfo info, params string[] names) {
+					for (int i = 0; i < names.Length; i++) {
+						int hash = Animator.StringToHash(names[i]);
+						if (animator.HasState(0, hash)) {
+							info.EntryStateHash = hash;
+							return true;
+						}
+
+						int mergedHash = Animator.StringToHash(names[i].Replace(" ", string.Empty));
+						if (animator.HasState(0, mergedHash)) {
+							info.EntryStateHash = mergedHash;
+							return true;
+						}
+					}
+					return false;
+				}
+
 				editorInspectorInit = true;
 			}
 
 			switch (transitionType) {
+#if ENABLE_VIDEO
+				case TransitionType.Video:
+					if (!sequenceVideoInfo.VideoPlayer) {
+						sequenceVideoInfo.VideoPlayer = GetComponent<VideoPlayer>();
+					}
+					break;
+#endif
 				case TransitionType.Custom:
 					if (!customTransitionTarget) {
 						customTransitionTarget = GetComponent<SplashSequenceTransition>();
@@ -138,45 +251,51 @@ namespace JK.UnityCustomSplash {
 		}
 #endif
 
+		/// <summary>
+		/// Called on Sequence.Awake, separate from own's Awake method.
+		/// </summary>
 		public virtual void Setup() {
 			if (modifyGameObjectOnTransition) gameObject.SetActive(false);
 
 			switch (transitionType) {
 				case TransitionType.CanvasGroup:
-					canvasGroupFadeInDuration = (canvasGroupFadeInCurve.length > 0) ? canvasGroupFadeInCurve[canvasGroupFadeInCurve.length - 1].time : 0;
-					canvasGroupFadeOutDuration = (canvasGroupFadeOutCurve.length > 0) ? canvasGroupFadeOutCurve[canvasGroupFadeOutCurve.length - 1].time : 0;
+					transitionInCanvasGroupInfo.Setup();
+					transitionOutCanvasGroupInfo.Setup();
 
 					previousCanvasGroupInteractable = canvasGroupTransitionTarget.interactable;
 					previousCanvasGroupBlockRaycast = canvasGroupTransitionTarget.blocksRaycasts;
 					ModifyCanvasGroup(false, false);
 
 					break;
-				case TransitionType.Animator:
-
+#if ENABLE_VIDEO
+				case TransitionType.Video:
+					transitionInVideoInfo.Setup();
+					transitionOutVideoInfo.Setup();
+					sequenceVideoInfo.Setup();
+					break;
+#endif
+				default:
 					break;
 			}
 		}
 
-		public IEnumerator TransitionIn() {
+		public virtual IEnumerator TransitionIn() {
 			if (modifyGameObjectOnTransition) gameObject.SetActive(true);
 
 			switch (transitionType) {
-				case TransitionType.CanvasGroup: {
-						ModifyCanvasGroup(false, false);
-
-						float elapsedTime = 0f;
-						while (elapsedTime < canvasGroupFadeInDuration) {
-							elapsedTime += Time.deltaTime * canvasGroupFadeInMultiplier;
-							canvasGroupTransitionTarget.alpha = canvasGroupFadeInCurve.Evaluate(elapsedTime / canvasGroupFadeInDuration);
-							yield return null;
-						}
-
-						ModifyCanvasGroup(previousCanvasGroupInteractable, previousCanvasGroupBlockRaycast);
-					}
+				case TransitionType.CanvasGroup:
+					ModifyCanvasGroup(false, false);
+					yield return transitionInCanvasGroupInfo.Do(canvasGroupTransitionTarget);
+					ModifyCanvasGroup(previousCanvasGroupInteractable, previousCanvasGroupBlockRaycast);
 					break;
 				case TransitionType.Animator:
-					yield return PlayAnimatorInfo(transitionInAnimatorInfo);
+					yield return transitionInAnimatorInfo.Play();
 					break;
+#if ENABLE_VIDEO
+				case TransitionType.Video:
+					yield return transitionInVideoInfo.Play();
+					break;
+#endif
 				case TransitionType.Custom:
 					if (customTransitionTarget) {
 						yield return customTransitionTarget.In();
@@ -189,22 +308,20 @@ namespace JK.UnityCustomSplash {
 			}
 		}
 
-		public IEnumerator TransitionOut() {
+		public virtual IEnumerator TransitionOut() {
 			switch (transitionType) {
-				case TransitionType.CanvasGroup: {
-						float elapsedTime = 0f;
-						while (elapsedTime < canvasGroupFadeOutDuration) {
-							elapsedTime += Time.deltaTime * canvasGroupFadeOutMultiplier;
-							canvasGroupTransitionTarget.alpha = canvasGroupFadeOutCurve.Evaluate(elapsedTime / canvasGroupFadeOutDuration);
-							yield return null;
-						}
-
-						ModifyCanvasGroup(previousCanvasGroupInteractable, previousCanvasGroupBlockRaycast);
-					}
+				case TransitionType.CanvasGroup:
+					yield return transitionOutCanvasGroupInfo.Do(canvasGroupTransitionTarget);
+					ModifyCanvasGroup(previousCanvasGroupInteractable, previousCanvasGroupBlockRaycast);
 					break;
 				case TransitionType.Animator:
-					yield return PlayAnimatorInfo(transitionOutAnimatorInfo);
+					yield return transitionOutAnimatorInfo.Play();
 					break;
+#if ENABLE_VIDEO
+				case TransitionType.Video:
+					yield return transitionOutVideoInfo.Play();
+					break;
+#endif
 				case TransitionType.Custom:
 					if (customTransitionTarget) {
 						yield return customTransitionTarget.Out();
@@ -219,15 +336,19 @@ namespace JK.UnityCustomSplash {
 			if (modifyGameObjectOnTransition) gameObject.SetActive(false);
 		}
 
-		public IEnumerator Sequence() {
-			int type = GetSequenceType();
-			switch (type) {
-				case SEQUENCE_WAIT:
-					yield return new WaitForSeconds(waitSequenceDuration);
+		public virtual IEnumerator Sequence() {
+			switch (sequenceType) {
+				case SequenceType.Stay:
+					yield return new WaitForSeconds(sequenceStayDuration);
 					break;
-				case SEQUENCE_ANIMATION:
-					yield return PlayAnimatorInfo(sequenceAnimatorInfo);
+				case SequenceType.Animator:
+					yield return sequenceAnimatorInfo.Play();
 					break;
+#if ENABLE_VIDEO
+				case SequenceType.Video:
+					yield return sequenceVideoInfo.Play();
+					break;
+#endif
 				default:
 					break;
 			}
@@ -241,50 +362,6 @@ namespace JK.UnityCustomSplash {
 			if (modifyCanvasGroupBlockRaycastOnTransition) {
 				canvasGroupTransitionTarget.blocksRaycasts = blocksRaycasts;
 			}
-		}
-
-		private IEnumerator PlayAnimatorInfo(AnimatorInfo info) {
-			info.Animator.Play(info.EntryStateHash, info.LayerIndex);
-			while (true) {
-				yield return null;
-				var stateInfo = info.Animator.GetCurrentAnimatorStateInfo(info.LayerIndex);
-				bool inTransition = info.Animator.IsInTransition(info.LayerIndex);
-				if (!inTransition && stateInfo.normalizedTime >= 1f) break;
-			}
-		}
-
-		int GetSequenceType() {
-			int type = SEQUENCE_NONE;
-			switch (transitionType) {
-				case TransitionType.CanvasGroup:
-					switch (canvasGroupSequenceType) {
-						case CanvasGroupSequenceType.Wait:
-							type = SEQUENCE_WAIT;
-							break;
-					}
-					break;
-				case TransitionType.Animator:
-					switch (animatorSequenceType) {
-						case AnimatorSequenceType.Wait:
-							type = SEQUENCE_WAIT;
-							break;
-						case AnimatorSequenceType.Animator:
-							type = SEQUENCE_ANIMATION;
-							break;
-					}
-					break;
-				default:
-					switch (genericSequenceType) {
-						case GenericSequenceType.Wait:
-							type = SEQUENCE_WAIT;
-							break;
-						case GenericSequenceType.Animator:
-							type = SEQUENCE_ANIMATION;
-							break;
-					}
-					break;
-			}
-			return type;
 		}
 	}
 }

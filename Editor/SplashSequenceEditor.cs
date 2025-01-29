@@ -1,4 +1,3 @@
-using JK.UnityCustomSplashEditor;
 using JK.UnityCustomSplash;
 using System;
 using System.Collections.Generic;
@@ -6,34 +5,33 @@ using System.Reflection;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
+using UnityEngine.Video;
 
-namespace JK.UnitySplashExtendedEditor {
+namespace JK.UnityCustomSplashEditor {
 	[CustomEditor(typeof(SplashSequence), true)]
 	public class SplashSequenceEditor : Editor {
 		private SerializedProperty transitionTypeProperty;
 		private SerializedProperty modifyGameObjectOnTransitionProperty;
 
 		private SerializedProperty canvasGroupTransitionTargetProperty;
-		private SerializedProperty canvasGroupFadeInCurveProperty;
-		private SerializedProperty canvasGroupFadeInMultiplierProperty;
-		private SerializedProperty canvasGroupFadeOutCurveProperty;
-		private SerializedProperty canvasGroupFadeOutMultiplierProperty;
 		private SerializedProperty modifyCanvasGroupInteractableOnTransitionProperty;
 		private SerializedProperty modifyCanvasGroupBlockRaycastOnTransitionProperty;
+
+		private SerializedProperty transitionInCanvasGroupInfoProperty;
+		private SerializedProperty transitionOutCanvasGroupInfoProperty;
 
 		private SerializedProperty transitionInAnimatorInfoProperty;
 		private SerializedProperty transitionOutAnimatorInfoProperty;
 
-		private SerializedProperty transitionInAnimationInfoProperty;
+		private SerializedProperty transitionInVideoInfoProperty;
+		private SerializedProperty transitionOutVideoInfoProperty;
 
 		private SerializedProperty customTransitionTargetProperty;
 
-		private SerializedProperty canvasGroupSequenceTypeProperty;
-		private SerializedProperty animatorSequenceTypeProperty;
-		private SerializedProperty genericSequenceTypeProperty;
-
-		private SerializedProperty waitSequenceDurationProperty;
-		private SerializedProperty sequenceAnimatorInfo;
+		private SerializedProperty sequenceTypeProperty;
+		private SerializedProperty sequenceStayDurationProperty;
+		private SerializedProperty sequenceAnimatorInfoProperty;
+		private SerializedProperty sequenceVideoInfoProperty;
 
 		protected Type currentType;
 		protected Type baseType;
@@ -41,7 +39,7 @@ namespace JK.UnitySplashExtendedEditor {
 		private bool inFoldout = true;
 		private bool outFoldout = true;
 
-		protected virtual bool DrawInspectorOfCurrentType => true;
+		protected virtual bool DrawCurrentTypeProperties => true;
 
 		private void OnEnable() {
 			currentType = target.GetType();
@@ -51,24 +49,25 @@ namespace JK.UnitySplashExtendedEditor {
 			modifyGameObjectOnTransitionProperty = serializedObject.FindProperty(nameof(SplashSequence.modifyGameObjectOnTransition));
 
 			canvasGroupTransitionTargetProperty = serializedObject.FindProperty(nameof(SplashSequence.canvasGroupTransitionTarget));
-			canvasGroupFadeInCurveProperty = serializedObject.FindProperty(nameof(SplashSequence.canvasGroupFadeInCurve));
-			canvasGroupFadeInMultiplierProperty = serializedObject.FindProperty(nameof(SplashSequence.canvasGroupFadeInMultiplier));
-			canvasGroupFadeOutCurveProperty = serializedObject.FindProperty(nameof(SplashSequence.canvasGroupFadeOutCurve));
-			canvasGroupFadeOutMultiplierProperty = serializedObject.FindProperty(nameof(SplashSequence.canvasGroupFadeOutMultiplier));
+			transitionInCanvasGroupInfoProperty = serializedObject.FindProperty(nameof(SplashSequence.transitionInCanvasGroupInfo));
+			transitionOutCanvasGroupInfoProperty = serializedObject.FindProperty(nameof(SplashSequence.transitionOutCanvasGroupInfo));
 			modifyCanvasGroupInteractableOnTransitionProperty = serializedObject.FindProperty(nameof(SplashSequence.modifyCanvasGroupInteractableOnTransition));
 			modifyCanvasGroupBlockRaycastOnTransitionProperty = serializedObject.FindProperty(nameof(SplashSequence.modifyCanvasGroupBlockRaycastOnTransition));
 
 			transitionInAnimatorInfoProperty = serializedObject.FindProperty(nameof(SplashSequence.transitionInAnimatorInfo));
 			transitionOutAnimatorInfoProperty = serializedObject.FindProperty(nameof(SplashSequence.transitionOutAnimatorInfo));
 
+			transitionInVideoInfoProperty = serializedObject.FindProperty(nameof(SplashSequence.transitionInVideoInfo));
+			transitionOutVideoInfoProperty = serializedObject.FindProperty(nameof(SplashSequence.transitionOutVideoInfo));
+
 			customTransitionTargetProperty = serializedObject.FindProperty(nameof(SplashSequence.customTransitionTarget));
 
-			canvasGroupSequenceTypeProperty = serializedObject.FindProperty(nameof(SplashSequence.canvasGroupSequenceType));
-			animatorSequenceTypeProperty = serializedObject.FindProperty(nameof(SplashSequence.animatorSequenceType));
-			genericSequenceTypeProperty = serializedObject.FindProperty(nameof(SplashSequence.genericSequenceType));
+			sequenceTypeProperty = serializedObject.FindProperty(nameof(SplashSequence.sequenceType));
 
-			waitSequenceDurationProperty = serializedObject.FindProperty(nameof(SplashSequence.waitSequenceDuration));
-			sequenceAnimatorInfo = serializedObject.FindProperty(nameof(SplashSequence.sequenceAnimatorInfo));
+			sequenceStayDurationProperty = serializedObject.FindProperty(nameof(SplashSequence.sequenceStayDuration));
+			sequenceAnimatorInfoProperty = serializedObject.FindProperty(nameof(SplashSequence.sequenceAnimatorInfo));
+			sequenceVideoInfoProperty = serializedObject.FindProperty(nameof(SplashSequence.sequenceVideoInfo));
+
 		}
 
 		public override void OnInspectorGUI() {
@@ -78,7 +77,7 @@ namespace JK.UnitySplashExtendedEditor {
 			DrawTransitionInspector();
 			DrawSequenceInspector();
 
-			if (DrawInspectorOfCurrentType) {
+			if (DrawCurrentTypeProperties) {
 				var property = serializedObject.GetIterator();
 				property.NextVisible(true);
 
@@ -100,10 +99,25 @@ namespace JK.UnitySplashExtendedEditor {
 			EditorGUI.indentLevel++;
 			switch ((SplashSequence.TransitionType)transitionTypeProperty.enumValueIndex) {
 				case SplashSequence.TransitionType.CanvasGroup:
-					DrawCanvasGroup();
+					EditorGUILayout.PropertyField(canvasGroupTransitionTargetProperty, new GUIContent("Target"));
+					if (canvasGroupTransitionTargetProperty.objectReferenceValue) {
+						inFoldout = DrawCanvasGroupInfoProperty("In", inFoldout, transitionInCanvasGroupInfoProperty);
+						outFoldout = DrawCanvasGroupInfoProperty("Out", outFoldout, transitionOutCanvasGroupInfoProperty);
+
+						EditorGUILayout.PropertyField(modifyCanvasGroupBlockRaycastOnTransitionProperty, new GUIContent("Blocks Raycasts", "If true, CanvasGroup.blocksRaycasts will be modified during transition."));
+						EditorGUILayout.PropertyField(modifyCanvasGroupInteractableOnTransitionProperty, new GUIContent("Interactable", "If true, CanvasGroup.interactable will be modified during transition."));
+					}
+					DrawAdditionalProperties();
 					break;
 				case SplashSequence.TransitionType.Animator:
-					DrawAnimator();
+					DrawAnimatorInfoProperty("In", transitionInAnimatorInfoProperty, true);
+					DrawAnimatorInfoProperty("Out", transitionOutAnimatorInfoProperty, true);
+					DrawAdditionalProperties();
+					break;
+				case SplashSequence.TransitionType.Video:
+					DrawVideoInfoProperty("In", transitionInVideoInfoProperty);
+					DrawVideoInfoProperty("Out", transitionOutVideoInfoProperty);
+					DrawAdditionalProperties();
 					break;
 				case SplashSequence.TransitionType.Custom:
 					EditorGUILayout.PropertyField(customTransitionTargetProperty, new GUIContent("Target"));
@@ -112,151 +126,78 @@ namespace JK.UnitySplashExtendedEditor {
 					break;
 			}
 
-			EditorGUILayout.PropertyField(modifyGameObjectOnTransitionProperty, new GUIContent("Modify Game Object"));
-
 			EditorGUI.indentLevel--;
 			EditorGUI.indentLevel = previousIndentLevel;
 
-			void DrawCanvasGroup() {
-				int previousIndentLevel = EditorGUI.indentLevel;
-
-				EditorGUILayout.PropertyField(canvasGroupTransitionTargetProperty, new GUIContent("Target"));
-
-				if (canvasGroupTransitionTargetProperty.objectReferenceValue) {
-					inFoldout = Foldout("In", inFoldout, canvasGroupFadeInCurveProperty, canvasGroupFadeInMultiplierProperty);
-					outFoldout = Foldout("Out", outFoldout, canvasGroupFadeOutCurveProperty, canvasGroupFadeOutMultiplierProperty);
-
-					EditorGUILayout.PropertyField(modifyCanvasGroupBlockRaycastOnTransitionProperty, new GUIContent("Blocks Raycasts", "If true, CanvasGroup.blocksRaycasts will be modified during transition."));
-					EditorGUILayout.PropertyField(modifyCanvasGroupInteractableOnTransitionProperty, new GUIContent("Interactable", "If true, CanvasGroup.interactable will be modified during transition."));
-				}
-
-				EditorGUI.indentLevel = previousIndentLevel;
-
-				bool Foldout(string name, bool value, SerializedProperty curve, SerializedProperty multiplier) {
-					bool newValue = EditorGUILayout.Foldout(value, new GUIContent(name), true);
-					if (newValue) {
-						EditorGUI.indentLevel++;
-						EditorGUILayout.PropertyField(curve, new GUIContent("Curve"));
-						EditorGUILayout.PropertyField(multiplier, new GUIContent("Multiplier"));
-						EditorGUI.indentLevel--;
-					}
-					return newValue;
-				}
-			}
-
-			void DrawAnimator() {
-				int previousIndentLevel = EditorGUI.indentLevel;
-
-				inFoldout = Foldout("In", inFoldout, transitionInAnimatorInfoProperty);
-				outFoldout = Foldout("Out", outFoldout, transitionOutAnimatorInfoProperty);
-
-				EditorGUI.indentLevel = previousIndentLevel;
-
-				bool Foldout(string name, bool value, SerializedProperty property) {
-					bool newValue = EditorGUILayout.Foldout(value, new GUIContent(name), true);
-					if (newValue) {
-						EditorGUI.indentLevel++;
-						DrawAnimatorInfoProperty(property);
-						EditorGUI.indentLevel--;
-					}
-					return newValue;
-				}
+			void DrawAdditionalProperties() {
+				EditorGUILayout.PropertyField(modifyGameObjectOnTransitionProperty, new GUIContent("Modify GameObject"));
 			}
 		}
 
 		protected virtual void DrawSequenceInspector() {
-			var sequenceLabel = new GUIContent("Sequence");
+			int previousIndentLevel = EditorGUI.indentLevel;
 
-			var transitionType = (SplashSequence.TransitionType)transitionTypeProperty.enumValueIndex;
-			switch (transitionType) {
-				case SplashSequence.TransitionType.CanvasGroup:
-					DrawCanvasGroup();
+			var options = GetSequenceTypes((SplashSequence.TransitionType)transitionTypeProperty.enumValueIndex);
+			var index = sequenceTypeProperty.enumValueIndex;
+			index = EditorGUILayout.Popup("Sequence", index, options);
+			var selectedType = Enum.Parse<SplashSequence.SequenceType>(options[index]);
+			sequenceTypeProperty.enumValueIndex = (int)selectedType;
+
+			EditorGUI.indentLevel++;
+			switch (selectedType) {
+				case SplashSequence.SequenceType.Stay:
+					EditorGUILayout.PropertyField(sequenceStayDurationProperty, new GUIContent("Duration"));
 					break;
-				case SplashSequence.TransitionType.Animator:
-					DrawAnimator();
+				case SplashSequence.SequenceType.Animator:
+					DrawAnimatorInfoProperty("Target", sequenceAnimatorInfoProperty, false);
+					break;
+				case SplashSequence.SequenceType.Video:
+					DrawVideoInfoProperty("Target", sequenceVideoInfoProperty);
 					break;
 				default:
-					DrawGeneric();
 					break;
 			}
+			EditorGUI.indentLevel--;
 
-			void DrawCanvasGroup() {
-				EditorGUILayout.PropertyField(canvasGroupSequenceTypeProperty, sequenceLabel);
-
-				int previousIndentLevel = EditorGUI.indentLevel;
-				EditorGUI.indentLevel++;
-
-				var sequenceType = (SplashSequence.CanvasGroupSequenceType)(canvasGroupSequenceTypeProperty.enumValueIndex);
-				switch (sequenceType) {
-					case SplashSequence.CanvasGroupSequenceType.Wait:
-						DrawWaitProperties();
-						break;
-					default:
-						break;
-				}
-
-				EditorGUI.indentLevel--;
-				EditorGUI.indentLevel = previousIndentLevel;
-			}
-
-			void DrawAnimator() {
-				EditorGUILayout.PropertyField(animatorSequenceTypeProperty, sequenceLabel);
-
-				int previousIndentLevel = EditorGUI.indentLevel;
-				EditorGUI.indentLevel++;
-
-				var sequenceType = (SplashSequence.AnimatorSequenceType)(animatorSequenceTypeProperty.enumValueIndex);
-				switch (sequenceType) {
-					case SplashSequence.AnimatorSequenceType.Wait:
-						DrawWaitProperties();
-						break;
-					case SplashSequence.AnimatorSequenceType.Animator:
-						DrawAnimatorProperties();
-						break;
-					default:
-						break;
-				}
-
-				EditorGUI.indentLevel--;
-				EditorGUI.indentLevel = previousIndentLevel;
-			}
-
-			void DrawGeneric() {
-				EditorGUILayout.PropertyField(genericSequenceTypeProperty, sequenceLabel);
-
-				int previousIndentLevel = EditorGUI.indentLevel;
-				EditorGUI.indentLevel++;
-
-				var sequenceType = (SplashSequence.GenericSequenceType)(genericSequenceTypeProperty.enumValueIndex);
-				switch (sequenceType) {
-					case SplashSequence.GenericSequenceType.Wait:
-						DrawWaitProperties();
-						break;
-					case SplashSequence.GenericSequenceType.Animator:
-						DrawAnimatorProperties();
-						break;
-					default:
-						break;
-				}
-
-				EditorGUI.indentLevel--;
-				EditorGUI.indentLevel = previousIndentLevel;
-			}
-
-			void DrawWaitProperties() {
-				EditorGUILayout.PropertyField(waitSequenceDurationProperty, new GUIContent("Duration"));
-			}
-
-			void DrawAnimatorProperties() {
-				DrawAnimatorInfoProperty(sequenceAnimatorInfo);
-			}
+			EditorGUI.indentLevel = previousIndentLevel;
 		}
 
-		private static void DrawAnimatorInfoProperty(SerializedProperty property) {
+		private static bool DrawCanvasGroupInfoProperty(string label, bool foldout, SerializedProperty property) {
+			int previousIndentLevel = EditorGUI.indentLevel;
+
+			bool newFoldout = EditorGUILayout.Foldout(foldout, new GUIContent(label), true);
+			if (newFoldout) {
+				EditorGUI.indentLevel++;
+				var sequenceTypeProperty = property.FindPropertyRelative(nameof(SplashSequence.CanvasGroupInfo.TransitionType));
+				EditorGUILayout.PropertyField(sequenceTypeProperty, new GUIContent("Transition Type"));
+
+				switch ((SplashSequence.CanvasGroupInfo.TrType)sequenceTypeProperty.enumValueIndex) {
+					case SplashSequence.CanvasGroupInfo.TrType.SetAlpha:
+						var alphaTargetProperty = property.FindPropertyRelative(nameof(SplashSequence.CanvasGroupInfo.TargetAlpha));
+						EditorGUILayout.PropertyField(alphaTargetProperty, new GUIContent("Target"));
+						break;
+					case SplashSequence.CanvasGroupInfo.TrType.Fade:
+						var fadeCurveProperty = property.FindPropertyRelative(nameof(SplashSequence.CanvasGroupInfo.FadeCurve));
+						var fadeDeltaMultiplier = property.FindPropertyRelative(nameof(SplashSequence.CanvasGroupInfo.FadeDeltaMultiplier));
+
+						EditorGUILayout.PropertyField(fadeCurveProperty, new GUIContent("Curve"));
+						EditorGUILayout.PropertyField(fadeDeltaMultiplier, new GUIContent("Multiplier"));
+						break;
+				}
+				EditorGUI.indentLevel--;
+			}
+
+			EditorGUI.indentLevel = previousIndentLevel;
+			return newFoldout;
+		}
+
+		private static void DrawAnimatorInfoProperty(string label, SerializedProperty property, bool indent) {
 			int previousIndentLevel = EditorGUI.indentLevel;
 
 			var animatorProperty = property.FindPropertyRelative(nameof(SplashSequence.AnimatorInfo.Animator));
-			EditorGUILayout.PropertyField(animatorProperty, new GUIContent("Animator"), true);
+			EditorGUILayout.PropertyField(animatorProperty, new GUIContent(label), true);
+
+			if (indent) EditorGUI.indentLevel++;
 			var animator = animatorProperty.objectReferenceValue as Animator;
 			if (animator) {
 				var controller = animator.runtimeAnimatorController as AnimatorController;
@@ -293,8 +234,33 @@ namespace JK.UnitySplashExtendedEditor {
 					}
 				}
 			}
+			if (indent) EditorGUI.indentLevel--;
 
 			EditorGUI.indentLevel = previousIndentLevel;
+		}
+
+		private static void DrawVideoInfoProperty(string label, SerializedProperty property) {
+			var videoPlayerProperty = property.FindPropertyRelative(nameof(SplashSequence.VideoInfo.VideoPlayer));
+			EditorGUILayout.PropertyField(videoPlayerProperty, new GUIContent(label));
+			var videoPlayer = videoPlayerProperty.objectReferenceValue as VideoPlayer;
+			if (videoPlayer) {
+				var prepareOnSetupProperty = property.FindPropertyRelative(nameof(SplashSequence.VideoInfo.PrepareOnSetup));
+				EditorGUILayout.PropertyField(prepareOnSetupProperty, new GUIContent("Prepare on Setup"));
+			}
+		}
+
+		private static string[] GetSequenceTypes(SplashSequence.TransitionType transitionType) {
+			var list = new List<string>();
+			var sequenceTypes = Enum.GetValues(typeof(SplashSequence.SequenceType));
+			foreach (SplashSequence.SequenceType sequenceType in sequenceTypes) {
+				// for filtering unwanted SequenceType based on the TransitionType.
+				switch (transitionType) {
+					default:
+						break;
+				}
+				list.Add(sequenceType.ToString());
+			}
+			return list.ToArray();
 		}
 	}
 }

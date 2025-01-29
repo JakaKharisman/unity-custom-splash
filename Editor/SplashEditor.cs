@@ -2,7 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace JK.UnitySplashExtendedEditor {
+namespace JK.UnityCustomSplashEditor {
 	[CustomEditor(typeof(Splash))]
 	public class SplashEditor : Editor {
 		private SerializedProperty sequenceReferencesProperty;
@@ -14,7 +14,7 @@ namespace JK.UnitySplashExtendedEditor {
 		private bool eventFoldout;
 
 		private void OnEnable() {
-			sequenceReferencesProperty = serializedObject.FindProperty(nameof(Splash._sequenceReferences));
+			sequenceReferencesProperty = serializedObject.FindProperty(nameof(Splash._sequenceInfos));
 			playOnStartProperty = serializedObject.FindProperty(nameof(Splash.playOnStart));
 
 			onPlayedEventProperty = serializedObject.FindProperty(nameof(Splash.onPlayed));
@@ -26,14 +26,15 @@ namespace JK.UnitySplashExtendedEditor {
 
 			int previousIndentLevel = EditorGUI.indentLevel;
 
-			EditorGUILayout.PropertyField(sequenceReferencesProperty, new GUIContent("Sequences"));
 			EditorGUILayout.PropertyField(playOnStartProperty);
+			EditorGUILayout.PropertyField(sequenceReferencesProperty, new GUIContent("Sequences"), true);
 
-			//EditorGUILayout.LabelField("Events");
-			eventFoldout = EditorGUILayout.Foldout(eventFoldout, new GUIContent("Events"));
+			eventFoldout = EditorGUILayout.Foldout(eventFoldout, new GUIContent("Events"), true);
 			if (eventFoldout) {
+				EditorGUI.indentLevel++;
 				EditorGUILayout.PropertyField(onPlayedEventProperty);
 				EditorGUILayout.PropertyField(onFinishedEventProperty);
+				EditorGUI.indentLevel--;
 			}
 
 			EditorGUI.indentLevel = previousIndentLevel;

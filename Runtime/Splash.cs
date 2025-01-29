@@ -13,13 +13,13 @@ namespace JK.UnityCustomSplash {
 			public SplashSequence Sequence;
 		}
 
-		[SerializeField] internal SequenceInfo[] _sequenceReferences;
+		[SerializeField] internal SequenceInfo[] _sequenceInfos;
 		[SerializeField] internal bool playOnStart;
 
-		private readonly List<SequenceInfo> references = new List<SequenceInfo>();
+		private readonly List<SequenceInfo> sequenceInfos = new List<SequenceInfo>();
 
 		private int currentIndex;
-		private List<SequenceInfo> groupReferences = new List<SequenceInfo>();
+		private List<SequenceInfo> groupSequenceInfos = new List<SequenceInfo>();
 		private readonly List<Coroutine> coroutines = new List<Coroutine>();
 
 		private Coroutine sequenceRoutine;
@@ -38,14 +38,14 @@ namespace JK.UnityCustomSplash {
 			currentIndex = 0;
 			isFinished = false;
 
-			references.Clear();
-			if (_sequenceReferences != null && _sequenceReferences.Length > 0) {
-				references.AddRange(_sequenceReferences.Where(reference => reference.Sequence != null));
-				foreach (var reference in references) {
+			sequenceInfos.Clear();
+			if (_sequenceInfos != null && _sequenceInfos.Length > 0) {
+				sequenceInfos.AddRange(_sequenceInfos.Where(reference => reference.Sequence != null));
+				foreach (var reference in sequenceInfos) {
 					reference.Sequence.Setup();
 				}
 			}
-			groupReferences.Clear();
+			groupSequenceInfos.Clear();
 		}
 
 		protected virtual void Start() {
@@ -75,50 +75,50 @@ namespace JK.UnityCustomSplash {
 
 		private bool Continue() {
 			if (isFinished) return false;
-			if (currentIndex >= references.Count) return false;
+			if (currentIndex >= sequenceInfos.Count) return false;
 
 			int cacheIndex = currentIndex;
-			for (int i = currentIndex; i < references.Count; i++) {
+			for (int i = currentIndex; i < sequenceInfos.Count; i++) {
 				cacheIndex = i;
-				if (references[i].WaitUntilFinished) {
+				if (sequenceInfos[i].WaitUntilFinished) {
 					break;
 				}
 			}
 
 			if (cacheIndex != currentIndex) {
-				groupReferences = references.GetRange(currentIndex, cacheIndex - currentIndex + 1);
+				groupSequenceInfos = sequenceInfos.GetRange(currentIndex, cacheIndex - currentIndex + 1);
 			} else {
-				groupReferences.Clear();
+				groupSequenceInfos.Clear();
 			}
-			transitionRoutine = StartCoroutine(DoIn());
+			transitionRoutine = StartCoroutine(StartInTransition());
 			return true;
 		}
 
-		private IEnumerator DoIn() {
+		private IEnumerator StartInTransition() {
 			if (sequenceRoutine != null) yield break;
 
-			if (groupReferences.Count > 0) {
+			if (groupSequenceInfos.Count > 0) {
 				coroutines.Clear();
-				foreach (var reference in groupReferences) {
+				foreach (var reference in groupSequenceInfos) {
 					coroutines.Add(StartCoroutine(reference.Sequence.TransitionIn()));
 				}
 				foreach (var coroutine in coroutines) {
 					yield return coroutine;
 				}
 			} else {
-				yield return references[currentIndex].Sequence.TransitionIn();
+				yield return sequenceInfos[currentIndex].Sequence.TransitionIn();
 			}
 
 			transitionRoutine = null;
-			sequenceRoutine = StartCoroutine(DoSequence());
+			sequenceRoutine = StartCoroutine(StartSequence());
 		}
 
-		private IEnumerator DoOut() {
+		private IEnumerator StartTransitionOut() {
 			if (sequenceRoutine != null) yield break;
 
-			if (groupReferences.Count > 0) {
+			if (groupSequenceInfos.Count > 0) {
 				coroutines.Clear();
-				foreach (var reference in groupReferences) {
+				foreach (var reference in groupSequenceInfos) {
 					coroutines.Add(StartCoroutine(reference.Sequence.TransitionOut()));
 				}
 
@@ -127,7 +127,7 @@ namespace JK.UnityCustomSplash {
 				}
 				currentIndex = currentIndex + coroutines.Count;
 			} else {
-				yield return references[currentIndex].Sequence.TransitionOut();
+				yield return sequenceInfos[currentIndex].Sequence.TransitionOut();
 				currentIndex++;
 			}
 
@@ -136,12 +136,12 @@ namespace JK.UnityCustomSplash {
 			if (!Continue()) End();
 		}
 
-		private IEnumerator DoSequence() {
+		private IEnumerator StartSequence() {
 			if (transitionRoutine != null) yield break;
 
-			if (groupReferences.Count > 0) {
+			if (groupSequenceInfos.Count > 0) {
 				coroutines.Clear();
-				foreach (var reference in groupReferences) {
+				foreach (var reference in groupSequenceInfos) {
 					coroutines.Add(StartCoroutine(reference.Sequence.Sequence()));
 				}
 
@@ -149,11 +149,11 @@ namespace JK.UnityCustomSplash {
 					yield return coroutine;
 				}
 			} else {
-				yield return references[currentIndex].Sequence.Sequence();
+				yield return sequenceInfos[currentIndex].Sequence.Sequence();
 			}
 
 			sequenceRoutine = null;
-			transitionRoutine = StartCoroutine(DoOut());
+			transitionRoutine = StartCoroutine(StartTransitionOut());
 		}
 
 		public WaitUntil Wait() {
@@ -173,15 +173,15 @@ namespace JK.UnityCustomSplash {
 			if (transitionRoutine != null || sequenceRoutine == null) return;
 			
 			SkipCurrent();
-			transitionRoutine = StartCoroutine(DoOut());
+			transitionRoutine = StartCoroutine(StartTransitionOut());
 		}
 
 		public void SkipAll() {
 			if (isFinished) return;
 
 			SkipCurrent();
-			currentIndex = references.Count;
-			transitionRoutine = StartCoroutine(DoOut());
+			currentIndex = sequenceInfos.Count;
+			transitionRoutine = StartCoroutine(StartTransitionOut());
 		}
 	}
 }
