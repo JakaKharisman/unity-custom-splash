@@ -25,6 +25,13 @@ namespace JK.UnityCustomSplash {
 #endif
 		}
 
+		private enum InternalState {
+			Ready,
+			TransitionIn,
+			Sequence,
+			TransitionOut,
+		}
+
 		[System.Serializable]
 		internal class CanvasGroupInfo {
 			public enum TrType {
@@ -32,33 +39,52 @@ namespace JK.UnityCustomSplash {
 				Fade,
 			}
 
+			private bool running;
+			private bool skipped;
 			private float duration;
 
 			public TrType TransitionType;
+			public bool Skippable;
 
 			[Range(0, 1)] public float TargetAlpha;
 
 			public AnimationCurve FadeCurve;
 			[Min(0.1f)] public float FadeDeltaMultiplier = 1f;
 
-			internal void Setup() {
+			internal void Prepare() {
 				duration = (FadeCurve.length > 0) ? FadeCurve[FadeCurve.length - 1].time : 0;
 			}
 
 			internal IEnumerator Do(CanvasGroup target) {
+				running = true;
+				skipped = false;
+
 				switch (TransitionType) {
 					case TrType.SetAlpha:
 						target.alpha = TargetAlpha;
 						break;
 					case TrType.Fade:
-						float elapsedTime = 0f;
+						float elapsedTime = 0;
 						while (elapsedTime < duration) {
+							if (skipped) {
+								break;
+							}
 							elapsedTime += Time.deltaTime * FadeDeltaMultiplier;
-							target.alpha = FadeCurve.Evaluate(elapsedTime / duration);
+							target.alpha = FadeCurve.Evaluate(Mathf.Lerp(0, duration, elapsedTime / duration));
 							yield return null;
 						}
+						target.alpha = FadeCurve.Evaluate(duration);
 						break;
 				}
+
+				running = false;
+			}
+
+			internal void Skip() {
+				if (!running) return;
+				if (!Skippable) return;
+
+				skipped = true;
 			}
 
 			internal static CanvasGroupInfo In() {
@@ -78,6 +104,10 @@ namespace JK.UnityCustomSplash {
 
 		[System.Serializable]
 		internal class AnimatorInfo {
+			private bool running;
+			private bool skipped;
+
+			public bool Skippable;
 			public Animator Animator;
 			public bool OverrideLayerIndex;
 			[Min(0)] public int OverrideLayerIndexValue;
@@ -87,23 +117,47 @@ namespace JK.UnityCustomSplash {
 			public int LayerIndex => OverrideLayerIndex ? 0 : OverrideLayerIndexValue;
 
 			internal IEnumerator Play() {
-				Animator.Play(EntryStateHash, LayerIndex);
+				running = true;
+				skipped = false;
+				Animator.Play(EntryStateHash, LayerIndex, 0);
 				while (true) {
+					if (skipped) {
+						Animator.Play(EntryStateHash, LayerIndex, 1f);
+						break;
+					}
+
 					yield return null;
 					var stateInfo = Animator.GetCurrentAnimatorStateInfo(LayerIndex);
 					bool inTransition = Animator.IsInTransition(LayerIndex);
 					if (!inTransition && stateInfo.normalizedTime >= 1f) break;
 				}
+				running = false;
+			}
+
+			internal void Skip() {
+				if (!running) return;
+				if (!Skippable) return;
+
+				skipped = true;
 			}
 		}
 
 #if ENABLE_VIDEO
 		[System.Serializable]
 		internal class VideoInfo {
+			private readonly bool skippable;
+
+			private bool skipped;
+			private bool running;
+
 			public VideoPlayer VideoPlayer;
 			public bool PrepareOnSetup;
 
-			internal void Setup() {
+			public VideoInfo(bool skippable) {
+				this.skippable = skippable;
+			}
+
+			internal void Prepare() {
 				if (VideoPlayer) {
 					VideoPlayer.playOnAwake = false;
 					VideoPlayer.isLooping = false;
@@ -115,14 +169,27 @@ namespace JK.UnityCustomSplash {
 			}
 
 			internal IEnumerator Play() {
+				skipped = false;
+				running = true;
 				if (!VideoPlayer.isPrepared) VideoPlayer.Prepare();
 				yield return new WaitUntil(() => VideoPlayer.isPrepared);
 
 				VideoPlayer.Play();
 				yield return null;
 				while (VideoPlayer.frame == 0 || VideoPlayer.isPlaying) {
+					if (skipped) {
+						VideoPlayer.time = VideoPlayer.length;
+						break;
+					}
 					yield return null;
 				}
+				running = false;
+			}
+
+			internal void Skip() {
+				if (!running) return;
+
+				skipped = true;
 			}
 		}
 #endif
@@ -171,6 +238,8 @@ namespace JK.UnityCustomSplash {
 		[SerializeField, HideInInspector] private bool editorInspectorInit;
 #endif
 
+		private InternalState state;
+		private bool skipped;
 
 #if UNITY_EDITOR
 		/// <summary>
@@ -251,16 +320,13 @@ namespace JK.UnityCustomSplash {
 		}
 #endif
 
-		/// <summary>
-		/// Called on Sequence.Awake, separate from own's Awake method.
-		/// </summary>
-		public virtual void Setup() {
+		public virtual void Prepare() {
 			if (modifyGameObjectOnTransition) gameObject.SetActive(false);
 
 			switch (transitionType) {
 				case TransitionType.CanvasGroup:
-					transitionInCanvasGroupInfo.Setup();
-					transitionOutCanvasGroupInfo.Setup();
+					transitionInCanvasGroupInfo.Prepare();
+					transitionOutCanvasGroupInfo.Prepare();
 
 					previousCanvasGroupInteractable = canvasGroupTransitionTarget.interactable;
 					previousCanvasGroupBlockRaycast = canvasGroupTransitionTarget.blocksRaycasts;
@@ -269,17 +335,25 @@ namespace JK.UnityCustomSplash {
 					break;
 #if ENABLE_VIDEO
 				case TransitionType.Video:
-					transitionInVideoInfo.Setup();
-					transitionOutVideoInfo.Setup();
-					sequenceVideoInfo.Setup();
+					transitionInVideoInfo.Prepare();
+					transitionOutVideoInfo.Prepare();
+					sequenceVideoInfo.Prepare();
 					break;
 #endif
 				default:
 					break;
 			}
+
+			state = InternalState.Ready;
+			skipped = false;
 		}
 
 		public virtual IEnumerator TransitionIn() {
+			if (state != InternalState.Ready) yield break;
+			state = InternalState.TransitionIn;
+
+			skipped = false;
+
 			if (modifyGameObjectOnTransition) gameObject.SetActive(true);
 
 			switch (transitionType) {
@@ -306,9 +380,14 @@ namespace JK.UnityCustomSplash {
 				default:
 					break;
 			}
+
+			state = InternalState.Ready;
 		}
 
 		public virtual IEnumerator TransitionOut() {
+			if (state != InternalState.Ready) yield break;
+			state = InternalState.TransitionOut;
+
 			switch (transitionType) {
 				case TransitionType.CanvasGroup:
 					yield return transitionOutCanvasGroupInfo.Do(canvasGroupTransitionTarget);
@@ -334,12 +413,25 @@ namespace JK.UnityCustomSplash {
 			}
 
 			if (modifyGameObjectOnTransition) gameObject.SetActive(false);
+			state = InternalState.Ready;
 		}
 
 		public virtual IEnumerator Sequence() {
+			if (state != InternalState.Ready) yield break;
+			state = InternalState.Sequence;
+
+			skipped = false;
+
 			switch (sequenceType) {
 				case SequenceType.Stay:
-					yield return new WaitForSeconds(sequenceStayDuration);
+					float elapsedTime = 0;
+					while (elapsedTime < sequenceStayDuration) {
+						yield return null;
+						elapsedTime += Time.deltaTime;
+						if (skipped) {
+							break;
+						}
+					}
 					break;
 				case SequenceType.Animator:
 					yield return sequenceAnimatorInfo.Play();
@@ -350,6 +442,31 @@ namespace JK.UnityCustomSplash {
 					break;
 #endif
 				default:
+					break;
+			}
+
+			state = InternalState.Ready;
+		}
+
+		public void Skip() {
+			switch (state) {
+				case InternalState.TransitionIn:
+					skipped = true;
+					transitionInAnimatorInfo.Skip();
+
+					break;
+				case InternalState.Sequence:
+					skipped = true;
+					switch (sequenceType) {
+						case SequenceType.Animator:
+							sequenceAnimatorInfo.Skip();
+							break;
+#if ENABLE_VIDEO
+						case SequenceType.Video:
+							sequenceVideoInfo.Skip();
+							break;
+#endif
+					}
 					break;
 			}
 		}

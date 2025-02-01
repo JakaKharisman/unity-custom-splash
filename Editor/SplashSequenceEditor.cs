@@ -101,8 +101,8 @@ namespace JK.UnityCustomSplashEditor {
 				case SplashSequence.TransitionType.CanvasGroup:
 					EditorGUILayout.PropertyField(canvasGroupTransitionTargetProperty, new GUIContent("Target"));
 					if (canvasGroupTransitionTargetProperty.objectReferenceValue) {
-						inFoldout = DrawCanvasGroupInfoProperty("In", inFoldout, transitionInCanvasGroupInfoProperty);
-						outFoldout = DrawCanvasGroupInfoProperty("Out", outFoldout, transitionOutCanvasGroupInfoProperty);
+						inFoldout = DrawCanvasGroupInfoProperty("In", transitionInCanvasGroupInfoProperty, inFoldout, true);
+						outFoldout = DrawCanvasGroupInfoProperty("Out", transitionOutCanvasGroupInfoProperty, outFoldout, false);
 
 						EditorGUILayout.PropertyField(modifyCanvasGroupBlockRaycastOnTransitionProperty, new GUIContent("Blocks Raycasts", "If true, CanvasGroup.blocksRaycasts will be modified during transition."));
 						EditorGUILayout.PropertyField(modifyCanvasGroupInteractableOnTransitionProperty, new GUIContent("Interactable", "If true, CanvasGroup.interactable will be modified during transition."));
@@ -110,8 +110,8 @@ namespace JK.UnityCustomSplashEditor {
 					DrawAdditionalProperties();
 					break;
 				case SplashSequence.TransitionType.Animator:
-					DrawAnimatorInfoProperty("In", transitionInAnimatorInfoProperty, true);
-					DrawAnimatorInfoProperty("Out", transitionOutAnimatorInfoProperty, true);
+					DrawAnimatorInfoProperty("In", transitionInAnimatorInfoProperty, true, true);
+					DrawAnimatorInfoProperty("Out", transitionOutAnimatorInfoProperty, true, false);
 					DrawAdditionalProperties();
 					break;
 				case SplashSequence.TransitionType.Video:
@@ -149,7 +149,7 @@ namespace JK.UnityCustomSplashEditor {
 					EditorGUILayout.PropertyField(sequenceStayDurationProperty, new GUIContent("Duration"));
 					break;
 				case SplashSequence.SequenceType.Animator:
-					DrawAnimatorInfoProperty("Target", sequenceAnimatorInfoProperty, false);
+					DrawAnimatorInfoProperty("Target", sequenceAnimatorInfoProperty, false, true);
 					break;
 				case SplashSequence.SequenceType.Video:
 					DrawVideoInfoProperty("Target", sequenceVideoInfoProperty);
@@ -162,7 +162,7 @@ namespace JK.UnityCustomSplashEditor {
 			EditorGUI.indentLevel = previousIndentLevel;
 		}
 
-		private static bool DrawCanvasGroupInfoProperty(string label, bool foldout, SerializedProperty property) {
+		private static bool DrawCanvasGroupInfoProperty(string label, SerializedProperty property, bool foldout, bool editSkippable) {
 			int previousIndentLevel = EditorGUI.indentLevel;
 
 			bool newFoldout = EditorGUILayout.Foldout(foldout, new GUIContent(label), true);
@@ -184,6 +184,12 @@ namespace JK.UnityCustomSplashEditor {
 						EditorGUILayout.PropertyField(fadeDeltaMultiplier, new GUIContent("Multiplier"));
 						break;
 				}
+
+				var skippableProperty = property.FindPropertyRelative(nameof(SplashSequence.CanvasGroupInfo.Skippable));
+				var guiState = GUI.enabled;
+				GUI.enabled = editSkippable;
+				EditorGUILayout.PropertyField(skippableProperty, new GUIContent("Skippable"));
+				GUI.enabled = guiState;
 				EditorGUI.indentLevel--;
 			}
 
@@ -191,7 +197,7 @@ namespace JK.UnityCustomSplashEditor {
 			return newFoldout;
 		}
 
-		private static void DrawAnimatorInfoProperty(string label, SerializedProperty property, bool indent) {
+		private static void DrawAnimatorInfoProperty(string label, SerializedProperty property, bool indent, bool editSkippable) {
 			int previousIndentLevel = EditorGUI.indentLevel;
 
 			var animatorProperty = property.FindPropertyRelative(nameof(SplashSequence.AnimatorInfo.Animator));
@@ -232,6 +238,12 @@ namespace JK.UnityCustomSplashEditor {
 						currentIndex = EditorGUILayout.Popup("Entry State", currentIndex, stateNames.ToArray());
 						entryStateHashProperty.intValue = animatorStates[currentIndex].nameHash;
 					}
+
+					var skippableProperty = property.FindPropertyRelative(nameof(SplashSequence.AnimatorInfo.Skippable));
+					var guiState = GUI.enabled;
+					GUI.enabled = editSkippable;
+					EditorGUILayout.PropertyField(skippableProperty, new GUIContent("Skippable"));
+					GUI.enabled = guiState;
 				}
 			}
 			if (indent) EditorGUI.indentLevel--;
