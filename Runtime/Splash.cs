@@ -21,9 +21,6 @@ namespace JK.UnityCustomSplash {
 
 			private readonly List<Coroutine> coroutines = new List<Coroutine>();
 
-			internal void Setup() {
-			}
-
 			internal IEnumerator Play() {
 				foreach (var sequence in sequences) {
 					sequence.Prepare();
@@ -103,11 +100,13 @@ namespace JK.UnityCustomSplash {
 		}
 
 		private IEnumerator PlayRoutine() {
+			isPlaying = true;
 			currentIndex = 0;
 			for (int i = 0; i < groups.Length; i++) {
 				yield return groups[i].Play();
 				currentIndex = i;
 			}
+			isPlaying = false;
 		}
 	}
 }
