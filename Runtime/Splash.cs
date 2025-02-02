@@ -17,7 +17,7 @@ namespace JK.UnityCustomSplash {
 			};
 
 			internal Splash splash;
-			[SerializeField] internal SplashSequence[] sequences;
+			[SerializeField] internal List<SplashSequence> sequences = new List<SplashSequence>();
 
 			private readonly List<Coroutine> coroutines = new List<Coroutine>();
 
@@ -27,7 +27,7 @@ namespace JK.UnityCustomSplash {
 				}
 
 				coroutines.Clear();
-				for (int i = 0; i < sequences.Length; i++) {
+				for (int i = 0; i < sequences.Count; i++) {
 					coroutines.Add(splash.StartCoroutine(Play(i)));
 				}
 				for (int i = 0; i < coroutines.Count; i++) {
@@ -36,7 +36,7 @@ namespace JK.UnityCustomSplash {
 			}
 
 			internal void Skip() {
-				for (int i = 0; i < sequences.Length; i++) {
+				for (int i = 0; i < sequences.Count; i++) {
 					sequences[i].Skip();
 				}
 			}
@@ -48,8 +48,18 @@ namespace JK.UnityCustomSplash {
 			}
 		}
 
-		[SerializeField] internal GroupInfo[] groups;
-		[SerializeField] internal bool playOnStart;
+		[SerializeField]
+		internal List<GroupInfo> groups = new List<GroupInfo>() {
+			new GroupInfo() {
+				sequences = new List<SplashSequence>() {
+					null,
+				}
+			}
+		};
+		
+		[SerializeField] internal bool playOnStart = true;
+		[SerializeField] internal bool removeEmptyReferences = true;
+
 		[SerializeField] internal Button skipButton;
 
 		private bool isPlaying;
@@ -69,6 +79,16 @@ namespace JK.UnityCustomSplash {
 
 			foreach (var group in groups) {
 				group.splash = this;
+				if (removeEmptyReferences) {
+					int index = 0;
+					while (index < group.sequences.Count) {
+						if (!group.sequences[index]) {
+							group.sequences.RemoveAt(index);
+							continue;
+						}
+						index++;
+					}
+				}
 			}
 
 			if (skipButton) {
@@ -107,7 +127,7 @@ namespace JK.UnityCustomSplash {
 		private IEnumerator PlayRoutine() {
 			isPlaying = true;
 			currentIndex = 0;
-			for (int i = 0; i < groups.Length; i++) {
+			for (int i = 0; i < groups.Count; i++) {
 				yield return groups[i].Play();
 				currentIndex = i;
 			}

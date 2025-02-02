@@ -23,6 +23,7 @@ namespace JK.UnityCustomSplashEditor {
 
 		private SerializedProperty groupsProperty;
 		private SerializedProperty playOnStartProperty;
+		private SerializedProperty removeEmptyReferencesProperty;
 		private SerializedProperty skipButtonProperty;
 
 		private SerializedProperty onPlayedEventProperty;
@@ -40,6 +41,7 @@ namespace JK.UnityCustomSplashEditor {
 		private void OnEnable() {
 			groupsProperty = serializedObject.FindProperty(nameof(Splash.groups));
 			playOnStartProperty = serializedObject.FindProperty(nameof(Splash.playOnStart));
+			removeEmptyReferencesProperty = serializedObject.FindProperty(nameof(Splash.removeEmptyReferences));
 			skipButtonProperty = serializedObject.FindProperty(nameof(Splash.skipButton));
 
 			onPlayedEventProperty = serializedObject.FindProperty(nameof(Splash.onPlayed));
@@ -204,6 +206,9 @@ namespace JK.UnityCustomSplashEditor {
 			EditorGUILayout.LabelField(new GUIContent("Options"), Styles.LabelBold);
 
 			EditorGUILayout.PropertyField(playOnStartProperty, new GUIContent("Play on Start"));
+			EditorGUILayout.PropertyField(removeEmptyReferencesProperty, new GUIContent("Remove Empty References", "If set true, will remove empty sequence reference in all groups to avoid error"));
+
+			EditorGUILayout.Space();
 			EditorGUILayout.PropertyField(skipButtonProperty, new GUIContent("Skip Button"));
 		}
 
