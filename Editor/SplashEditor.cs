@@ -80,7 +80,7 @@ namespace JK.UnityCustomSplashEditor {
 							}
 							EditorGUILayout.PropertyField(sequenceProperty, new GUIContent($"Sequence"));
 							GUI.enabled = sequenceProperty.objectReferenceValue;
-							if (Button(selectedSequenceIndex == index ? "▲" : "▼")) {
+							if (Button(sequenceProperty.objectReferenceValue && selectedSequenceIndex == index ? "▲" : "▼")) {
 								if (selectedSequenceIndex == index) {
 									selectedSequenceIndex = -1;
 									break;
