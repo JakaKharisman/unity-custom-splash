@@ -77,18 +77,24 @@ namespace JK.UnityCustomSplash {
 		protected virtual void Awake() {
 			currentIndex = 0;
 
-			foreach (var group in groups) {
-				group.splash = this;
+			int groupIndex = 0;
+			while (groupIndex < groups.Count) {
 				if (removeEmptyReferences) {
-					int index = 0;
-					while (index < group.sequences.Count) {
-						if (!group.sequences[index]) {
-							group.sequences.RemoveAt(index);
+					int sequenceIndex = 0;
+					while (sequenceIndex < groups[groupIndex].sequences.Count) {
+						if (!groups[groupIndex].sequences[sequenceIndex]) {
+							groups[groupIndex].sequences.RemoveAt(sequenceIndex);
 							continue;
 						}
-						index++;
+						sequenceIndex++;
+					}
+					if (groups[groupIndex].sequences.Count == 0) {
+						groups.RemoveAt(groupIndex);
+						continue;
 					}
 				}
+				groups[groupIndex].splash = this;
+				groupIndex++;
 			}
 
 			if (skipButton) {
