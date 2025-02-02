@@ -8,10 +8,8 @@ namespace JK.UnityCustomSplashEditor {
 		private static class Styles {
 			public static GUIStyle SmallButtonFixed { get; }
 			public static GUIStyle SmallButtonSelected { get; }
-			public static GUIStyle WideButton { get; }
 
 			static Styles() {
-				WideButton = new GUIStyle(GUI.skin.button) { fixedWidth = 60 };
 				SmallButtonFixed = new GUIStyle(GUI.skin.button) { fixedWidth = 30 };
 				SmallButtonSelected = new GUIStyle(GUI.skin.button) { fixedWidth = 30, fontStyle = FontStyle.Bold, };
 			}
@@ -28,7 +26,7 @@ namespace JK.UnityCustomSplashEditor {
 
 		private int selectedGroupIndex;
 		private int selectedSequenceIndex;
-		private int navIndex;
+		private int navigationIndex;
 
 		private bool eventFoldout;
 
@@ -122,28 +120,27 @@ namespace JK.UnityCustomSplashEditor {
 		private void DrawNavigation() {
 			var guiEnabled = GUI.enabled;
 
-			int range = Mathf.Clamp(groupsProperty.arraySize, 0, NAV_MAX);
 			EditorGUILayout.BeginHorizontal();
+			int size = Mathf.Max((groupsProperty.arraySize - 1) / NAV_MAX, 0);
 
-			GUI.enabled = navIndex != 0;
+			GUI.enabled = navigationIndex > 0;
 			if (Button("<")) {
-				navIndex = Mathf.Min(0, navIndex - 1);
+				navigationIndex = Mathf.Clamp(navigationIndex - 1, 0, size);
 			}
-			GUI.enabled = true;
 
-			for (int i = 0; i < range; i++) {
-				int index = i + navIndex;
-				if (Button($"{index + 1}", i == selectedGroupIndex)) {
+			for (int i = 0; i < NAV_MAX; i++) {
+				int index = (navigationIndex * NAV_MAX) + i;
+				GUI.enabled = index < groupsProperty.arraySize;
+				if (Button($"{index + 1}", index == selectedGroupIndex)) {
 					selectedGroupIndex = index;
 					selectedSequenceIndex = -1;
 				}
 			}
 
-			GUI.enabled = navIndex < groupsProperty.arraySize - range;
+			GUI.enabled = navigationIndex < size;
 			if (Button(">")) {
-				navIndex = Mathf.Min(navIndex + 1, groupsProperty.arraySize - range);
+				navigationIndex = Mathf.Clamp(navigationIndex + 1, 0, size);
 			}
-			GUI.enabled = true;
 
 			EditorGUILayout.Space();
 
@@ -153,17 +150,28 @@ namespace JK.UnityCustomSplashEditor {
 					groupsProperty.DeleteArrayElementAtIndex(selectedGroupIndex);
 					selectedGroupIndex = Mathf.Clamp(selectedGroupIndex - 1, 0, groupsProperty.arraySize);
 				}
-				if (groupsProperty.arraySize == 0) {
-					selectedGroupIndex = -1;
-				}
+				if (groupsProperty.arraySize == 0) selectedGroupIndex = -1;
+				UpdateIndex();
 			}
-			GUI.enabled = true;
 
+			GUI.enabled = true;
 			if (Button("+")) {
-				CreateGroupAt(groupsProperty.arraySize);
+				selectedGroupIndex = groupsProperty.arraySize;
+				CreateGroupAt(selectedGroupIndex);
+				UpdateIndex();
 			}
+
 			EditorGUILayout.EndHorizontal();
+			
 			GUI.enabled = guiEnabled;
+
+			void UpdateIndex() {
+				int min = navigationIndex * NAV_MAX;
+				int max = min + NAV_MAX;
+				if (selectedGroupIndex >= min && selectedGroupIndex < max) return;
+
+				navigationIndex = Mathf.Max((groupsProperty.arraySize - 1) / NAV_MAX, 0);
+			}
 		}
 
 		private void DrawOptions() {
@@ -188,7 +196,6 @@ namespace JK.UnityCustomSplashEditor {
 
 		private void CreateGroupAt(int index) {
 			groupsProperty.InsertArrayElementAtIndex(index);
-			selectedGroupIndex = index;
 			var groupProperty = groupsProperty.GetArrayElementAtIndex(index);
 			var sequencesProperty = groupProperty.FindPropertyRelative(nameof(Splash.GroupInfo.sequences));
 			sequencesProperty.ClearArray();
