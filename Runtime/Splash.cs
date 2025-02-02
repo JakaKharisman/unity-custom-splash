@@ -57,9 +57,11 @@ namespace JK.UnityCustomSplash {
 		private int currentIndex;
 
 		[SerializeField] internal UnityEvent onPlayed;
+		[SerializeField] internal UnityEvent<int> onSkipped;
 		[SerializeField] internal UnityEvent onFinished;
 
 		public UnityEvent OnPlayed => onPlayed ??= new UnityEvent();
+		public UnityEvent<int> OnSkipped => onSkipped ??= new UnityEvent<int>();
 		public UnityEvent OnFinished => onFinished ??= new UnityEvent();
 
 		protected virtual void Awake() {
@@ -80,6 +82,7 @@ namespace JK.UnityCustomSplash {
 
 		protected virtual void OnDestroy() {
 			onPlayed?.RemoveAllListeners();
+			onSkipped?.RemoveAllListeners();
 			onFinished?.RemoveAllListeners();
 			if (skipButton) {
 				skipButton.onClick.RemoveListener(Skip);
@@ -91,12 +94,14 @@ namespace JK.UnityCustomSplash {
 
 			isPlaying = true;
 			StartCoroutine(PlayRoutine());
+			OnPlayed?.Invoke();
 		}
 
 		public void Skip() {
 			if (!isPlaying) return;
 
 			groups[currentIndex].Skip();
+			OnSkipped?.Invoke(currentIndex);
 		}
 
 		private IEnumerator PlayRoutine() {
@@ -107,6 +112,7 @@ namespace JK.UnityCustomSplash {
 				currentIndex = i;
 			}
 			isPlaying = false;
+			OnFinished?.Invoke();
 		}
 	}
 }
