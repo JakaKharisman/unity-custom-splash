@@ -120,7 +120,10 @@ namespace JK.UnityCustomSplashEditor {
 					EditorGUILayout.BeginHorizontal();
 					EditorGUILayout.Space();
 					if (Button("+")) {
-						sequencesProperty.InsertArrayElementAtIndex(sequencesProperty.arraySize);
+						int index = sequencesProperty.arraySize;
+						sequencesProperty.InsertArrayElementAtIndex(index);
+						var newSequenceProperty = sequencesProperty.GetArrayElementAtIndex(index);
+						newSequenceProperty.objectReferenceValue = null;
 					}
 					EditorGUILayout.EndHorizontal();
 				}
