@@ -3,102 +3,65 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
-using UnityEngine.UI;
 
 namespace JK.UnityCustomSplash {
 	public class Splash : MonoBehaviour {
 		[Serializable]
-		internal class GroupInfo {
+		internal class SequenceGroup {
+			internal MonoBehaviour runner;
+			[SerializeField] internal List<SplashSequence> sequences = new List<SplashSequence>() { null };
 
-			static readonly Func<SplashSequence, IEnumerator>[] phases = new Func<SplashSequence, IEnumerator>[] {
-				sequence => sequence.TransitionIn(),
-				sequence => sequence.Sequence(),
-				sequence => sequence.TransitionOut()
-			};
+			public bool Evaluate() {
+				int index = 0;
+				while (index < sequences.Count) {
+					if (!sequences[index]) {
+						sequences.RemoveAt(index);
+						continue;
+					}
+					index++;
+				}
+				return index > 0;
+			}
 
-			internal Splash splash;
-			[SerializeField] internal List<SplashSequence> sequences = new List<SplashSequence>();
+			public IEnumerator DoSequence() {
+				var coroutines = new List<Coroutine>();
+				for (int i = 0; i < sequences.Count; i++) {
+					coroutines.Add(runner.StartCoroutine(sequences[i].Play()));
+				}
+				foreach (var coroutine in coroutines) yield return coroutine;
+			}
 
-			private readonly List<Coroutine> coroutines = new List<Coroutine>();
-
-			internal IEnumerator Play() {
+			public void Skip() {
 				foreach (var sequence in sequences) {
-					sequence.Prepare();
-				}
-
-				coroutines.Clear();
-				for (int i = 0; i < sequences.Count; i++) {
-					coroutines.Add(splash.StartCoroutine(Play(i)));
-				}
-				for (int i = 0; i < coroutines.Count; i++) {
-					yield return coroutines[i];
-				}
-			}
-
-			internal void Skip() {
-				for (int i = 0; i < sequences.Count; i++) {
-					sequences[i].Skip();
-				}
-			}
-
-			private IEnumerator Play(int index) {
-				for (int i = 0; i < phases.Length; i++) {
-					yield return phases[i](sequences[index]);
+					sequence.Skip();
 				}
 			}
 		}
 
-		[SerializeField]
-		internal List<GroupInfo> groups = new List<GroupInfo>() {
-			new GroupInfo() {
-				sequences = new List<SplashSequence>() {
-					null,
-				}
-			}
-		};
-		
-		[SerializeField] internal bool playOnStart = true;
-		[SerializeField] internal bool removeEmptyReferences = true;
+		[SerializeField] internal List<SequenceGroup> sequenceGroups = new List<SequenceGroup>() { new() };
 
-		[SerializeField] internal Button skipButton;
+		[SerializeField] internal bool evaluateGroups = true;
+		[SerializeField] internal bool playOnStart;
 
+		[SerializeField] internal UnityEvent started;
+		[SerializeField] internal UnityEvent ended;
+
+		private int currentIndex = 0;
 		private bool isPlaying;
 
-		private int currentIndex;
-
-		[SerializeField] internal UnityEvent onPlayed;
-		[SerializeField] internal UnityEvent<int> onSkipped;
-		[SerializeField] internal UnityEvent onFinished;
-
-		public UnityEvent OnPlayed => onPlayed ??= new UnityEvent();
-		public UnityEvent<int> OnSkipped => onSkipped ??= new UnityEvent<int>();
-		public UnityEvent OnFinished => onFinished ??= new UnityEvent();
+		public UnityEvent Started => started;
+		public UnityEvent Ended => ended;
 
 		protected virtual void Awake() {
-			currentIndex = 0;
-
-			int groupIndex = 0;
-			while (groupIndex < groups.Count) {
-				if (removeEmptyReferences) {
-					int sequenceIndex = 0;
-					while (sequenceIndex < groups[groupIndex].sequences.Count) {
-						if (!groups[groupIndex].sequences[sequenceIndex]) {
-							groups[groupIndex].sequences.RemoveAt(sequenceIndex);
-							continue;
-						}
-						sequenceIndex++;
-					}
-					if (groups[groupIndex].sequences.Count == 0) {
-						groups.RemoveAt(groupIndex);
-						continue;
-					}
+			int index = 0;
+			while (index < sequenceGroups.Count) {
+				if (!sequenceGroups[index].Evaluate()) {
+					sequenceGroups.RemoveAt(index);
+					continue;
 				}
-				groups[groupIndex].splash = this;
-				groupIndex++;
-			}
 
-			if (skipButton) {
-				skipButton.onClick.AddListener(Skip);
+				sequenceGroups[index].runner = this;
+				index++;
 			}
 		}
 
@@ -106,39 +69,31 @@ namespace JK.UnityCustomSplash {
 			if (playOnStart) Play();
 		}
 
-		protected virtual void OnDestroy() {
-			onPlayed?.RemoveAllListeners();
-			onSkipped?.RemoveAllListeners();
-			onFinished?.RemoveAllListeners();
-			if (skipButton) {
-				skipButton.onClick.RemoveListener(Skip);
-			}
-		}
-
 		public void Play() {
 			if (isPlaying) return;
 
-			isPlaying = true;
-			StartCoroutine(PlayRoutine());
-			OnPlayed?.Invoke();
+			StartCoroutine(Routine());
+
+			IEnumerator Routine() {
+				currentIndex = 0;
+
+				isPlaying = true;
+				started?.Invoke();
+
+				for (int i = 0; i < sequenceGroups.Count; i++) {
+					yield return sequenceGroups[i].DoSequence();
+					currentIndex = i;
+				}
+				
+				isPlaying = false;
+				ended?.Invoke();
+			}
 		}
 
 		public void Skip() {
 			if (!isPlaying) return;
 
-			groups[currentIndex].Skip();
-			OnSkipped?.Invoke(currentIndex);
-		}
-
-		private IEnumerator PlayRoutine() {
-			isPlaying = true;
-			currentIndex = 0;
-			for (int i = 0; i < groups.Count; i++) {
-				yield return groups[i].Play();
-				currentIndex = i;
-			}
-			isPlaying = false;
-			OnFinished?.Invoke();
+			sequenceGroups[currentIndex].Skip();
 		}
 	}
 }
