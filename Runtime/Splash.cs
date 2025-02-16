@@ -6,61 +6,87 @@ using UnityEngine.Events;
 
 namespace JK.UnityCustomSplash {
 	public class Splash : MonoBehaviour {
+		internal enum SkippableCondition {
+			Any,
+			All,
+		}
+
 		[Serializable]
 		internal class SequenceGroup {
-			internal MonoBehaviour runner;
+			[SerializeField] internal SkippableCondition skippableCondition;
 			[SerializeField] internal List<SplashSequence> sequences = new List<SplashSequence>() { null };
 
-			public bool Evaluate() {
-				int index = 0;
-				while (index < sequences.Count) {
-					if (!sequences[index]) {
-						sequences.RemoveAt(index);
-						continue;
+			public bool Any { get; private set; }
+			public bool Skippable { get; private set; }
+
+			public void Initialize(bool removeEmptyReferences) {
+				if (removeEmptyReferences) {
+					int index = 0;
+					while (index < sequences.Count) {
+						if (!sequences[index]) {
+							sequences.RemoveAt(index);
+							continue;
+						}
+						index++;
 					}
-					index++;
 				}
-				return index > 0;
+
+				int count = sequences.Count;
+				int skippableCount = 0;
+				for (int i = 0; i < count; i++) {
+					if (skippableCondition == SkippableCondition.Any && sequences[i].skippable) {
+						skippableCount = count;
+						break;
+					}
+
+					skippableCount++;
+				}
+
+				Any = sequences.Count > 0;
+				Skippable = skippableCount == count;
+				if (Skippable) {
+					for (int i = 0; i < count; i++) {
+						sequences[i].skippable = true;
+					}
+				}
 			}
 
-			public IEnumerator DoSequence() {
-				var coroutines = new List<Coroutine>();
+			public bool Skip() {
+				if (!Skippable) return false;
+
 				for (int i = 0; i < sequences.Count; i++) {
-					coroutines.Add(runner.StartCoroutine(sequences[i].Play()));
+					sequences[i].Skip();
 				}
-				foreach (var coroutine in coroutines) yield return coroutine;
-			}
-
-			public void Skip() {
-				foreach (var sequence in sequences) {
-					sequence.Skip();
-				}
+				return true;
 			}
 		}
 
 		[SerializeField] internal List<SequenceGroup> sequenceGroups = new List<SequenceGroup>() { new() };
 
-		[SerializeField] internal bool evaluateGroups = true;
+		[SerializeField] internal bool removeEmptyReferences;
+		[SerializeField] internal bool skippable;
 		[SerializeField] internal bool playOnStart;
 
-		[SerializeField] internal UnityEvent started;
-		[SerializeField] internal UnityEvent ended;
+		[SerializeField] internal UnityEvent onPlay;
+		[SerializeField] internal UnityEvent onSkip;
+		[SerializeField] internal UnityEvent onEnd;
 
-		private int currentIndex = 0;
-		private bool isPlaying;
+		private int sequenceIndex = 0;
+		private bool running;
+		private readonly List<Coroutine> coroutines = new List<Coroutine>();
 
-		public UnityEvent Started => started;
-		public UnityEvent Ended => ended;
+		public UnityEvent OnPlay => onPlay;
+		public UnityEvent OnSkip => onSkip;
+		public UnityEvent OnEnd => onEnd;
 
 		protected virtual void Awake() {
 			int index = 0;
 			while (index < sequenceGroups.Count) {
-				if (!sequenceGroups[index].Evaluate()) {
+				sequenceGroups[index].Initialize(removeEmptyReferences);
+				if (!sequenceGroups[index].Any) {
 					sequenceGroups.RemoveAt(index);
 					continue;
 				}
-
-				sequenceGroups[index].runner = this;
 				index++;
 			}
 		}
@@ -70,30 +96,43 @@ namespace JK.UnityCustomSplash {
 		}
 
 		public void Play() {
-			if (isPlaying) return;
+			if (running) return;
 
 			StartCoroutine(Routine());
 
 			IEnumerator Routine() {
-				currentIndex = 0;
+				sequenceIndex = 0;
 
-				isPlaying = true;
-				started?.Invoke();
+				running = true;
+				OnPlay?.Invoke();
 
-				for (int i = 0; i < sequenceGroups.Count; i++) {
-					yield return sequenceGroups[i].DoSequence();
-					currentIndex = i;
+				while (sequenceIndex < sequenceGroups.Count) {
+					coroutines.Clear();
+
+					var group = sequenceGroups[sequenceIndex];
+					for (int j = 0; j < group.sequences.Count; j++) {
+						var coroutine = StartCoroutine(group.sequences[j].Play());
+						coroutines.Add(coroutine);
+					}
+
+					for (int j = 0; j < coroutines.Count; j++) {
+						yield return coroutines[j];
+					}
+
+					sequenceIndex++;
 				}
-				
-				isPlaying = false;
-				ended?.Invoke();
+
+				running = false;
+				OnEnd?.Invoke();
 			}
 		}
 
 		public void Skip() {
-			if (!isPlaying) return;
-
-			sequenceGroups[currentIndex].Skip();
+			if (!running) return;
+			if (!skippable) return;
+			if (!sequenceGroups[sequenceIndex].Skip()) return;
+			
+			OnSkip?.Invoke();
 		}
 	}
 }

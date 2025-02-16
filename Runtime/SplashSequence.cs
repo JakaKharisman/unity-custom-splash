@@ -39,6 +39,7 @@ namespace JK.UnityCustomSplash {
 		// Video
 		[SerializeField] internal VideoPlayer videoPlayer;
 
+		// General
 		[SerializeField] internal SequenceType sequenceType;
 		[SerializeField] internal bool inactiveBeforeSequence = true;
 		[SerializeField] internal bool inactiveAfterSequence = true;
@@ -82,17 +83,16 @@ namespace JK.UnityCustomSplash {
 		}
 #endif
 
-
 		public IEnumerator Play() {
 			isPlaying = true;
+			skipped = false;
 			if (inactiveBeforeSequence) gameObject.SetActive(true);
-			yield return OnSequence();
+			yield return OnPlay();
 			if (inactiveAfterSequence) gameObject.SetActive(false);
 			isPlaying = false;
 		}
 
-		protected virtual IEnumerator OnSequence() {
-			skipped = false;
+		protected virtual IEnumerator OnPlay() {
 			switch (sequenceType) {
 				case SequenceType.CanvasGroup:
 					bool previousInteractable = canvasGroup.interactable;
@@ -171,9 +171,9 @@ namespace JK.UnityCustomSplash {
 		}
 
 		public void Skip() {
-			if (skipped) return;
 			if (!isPlaying) return;
 			if (!skippable) return;
+			if (skipped) return;
 
 			skipped = true;
 		}
